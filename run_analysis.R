@@ -1,41 +1,78 @@
-read_data <- function() {
-  # read data from files to the variables 
-  # read train data
-  print("Reading Data from Files")
-  read_train_x <- readLines("UCI HAR Dataset/train/X_train.txt")
-  read_train_y <- readLines("UCI HAR Dataset/train/Y_train.txt")
-  read_subject_train <- readLines("UCI HAR Dataset/train/subject_train.txt")
-  # read test data
-  read_test_x <- readLines("UCI HAR Dataset/test/X_test.txt")
-  read_test_y <- readLines("UCI HAR Dataset/test/Y_test.txt")
-  read_subject_test <- readLines("UCI HAR Dataset/test/subject_test.txt")
-  print("Reading data completed.")
-  
-  print("Convert Data")
-  train_x <- read.table(text=read_train_x)
-  train_y <- read.table(text=read_train_y)
-  subject_train <- read.table(text=read_subject_train)
-  print(length(train_x))
-  
-  test_x <- read.table(text=read_test_x)
-  test_y <- read.table(text=read_test_y)
-  subject_test <- as.data.frame(read_subject_test)
-  
-  # Merge Data <- train + test
-  colnames(train_x) <- "Measurement"
-  colnames(train_y) <- "Activity"
-  colnames(subject_train) <- "Subject"
-  
-  colnames(test_x) <- "Measurement"
-  colnames(test_y) <- "Activity"
-  colnames(subject_test) <- "Subject"
-  
-  print("Merge the train and the test data")
-  total_x <- rbind(train_x, test_x)
-  total_y <- rbind(train_y, test_y)
-  total_subject <- rbind(subject_train, subject_test)
-  print(length(total_subject))
-}
 
-read_data()
-print("**End of Program**")
+## This script merges data from a number of .txt files and produces 
+## a tidy data set which may be used for further analysis.
+
+##check for required packages
+if (!("reshape2" %in% rownames(installed.packages())) ) {
+  print("Please install required package \"reshape2\" before proceeding")
+  install.packages("reshape2")
+} 
+
+## Open required libraries
+library(reshape2)
+
+## First, read all required .txt files and label the datasets
+
+## Read all activities and their names and label the aproppriate columns 
+activity_labels <- read.table("UCI HAR Dataset/activity_labels.txt",col.names=c("activity_id","activity_name"))
+
+## Read the dataframe's column names
+features <- read.table("UCI HAR Dataset/features.txt")
+feature_names <-  features[,2]
+
+## Read the test data and label the dataframe's columns
+testdata <- read.table("UCI HAR Dataset/test/X_test.txt")
+colnames(testdata) <- feature_names
+
+## Read the training data and label the dataframe's columns
+traindata <- read.table("UCI HAR Dataset/train/X_train.txt")
+colnames(traindata) <- feature_names
+
+## Read the ids of the test subjects and label the the dataframe's columns
+test_subject_id <- read.table("UCI HAR Dataset/test/subject_test.txt")
+colnames(test_subject_id) <- "subject_id"
+
+## Read the activity id's of the test data and label the the dataframe's columns
+test_activity_id <- read.table("UCI HAR Dataset/test/y_test.txt")
+colnames(test_activity_id) <- "activity_id"
+
+## Read the ids of the test subjects and label the the dataframe's columns
+train_subject_id <- read.table("UCI HAR Dataset/train/subject_train.txt")
+colnames(train_subject_id) <- "subject_id"
+
+## Read the activity id's of the training data and label 
+##the dataframe's columns
+train_activity_id <- read.table("UCI HAR Dataset/train/y_train.txt")
+colnames(train_activity_id) <- "activity_id"
+
+##Combine the test subject id's, the test activity id's 
+##and the test data into one dataframe
+test_data <- cbind(test_subject_id , test_activity_id , testdata)
+
+##Combine the test subject id's, the test activity id's 
+##and the test data into one dataframe
+train_data <- cbind(train_subject_id , train_activity_id , traindata)
+
+##Combine the test data and the train data into one dataframe
+all_data <- rbind(train_data,test_data)
+
+##Keep only columns refering to mean() or std() values
+mean_col_idx <- grep("mean",names(all_data),ignore.case=TRUE)
+mean_col_names <- names(all_data)[mean_col_idx]
+std_col_idx <- grep("std",names(all_data),ignore.case=TRUE)
+std_col_names <- names(all_data)[std_col_idx]
+meanstddata <-all_data[,c("subject_id","activity_id",mean_col_names,std_col_names)]
+
+##Merge the activities datase with the mean/std values datase 
+##to get one dataset with descriptive activity names
+descrnames <- merge(activity_labels,meanstddata,by.x="activity_id",by.y="activity_id",all=TRUE)
+
+##Melt the dataset with the descriptive activity names for better handling
+data_melt <- melt(descrnames,id=c("activity_id","activity_name","subject_id"))
+
+##Cast the melted dataset according to  the average of each variable 
+##for each activity and each subjec
+mean_data <- dcast(data_melt,activity_id + activity_name + subject_id ~ variable,mean)
+
+## Create a file with the new tidy dataset
+write.table(mean_data,"./tidy_movement_data.txt")
